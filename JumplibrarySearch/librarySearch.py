@@ -15,7 +15,7 @@ import sys
 import time
 from logFunctions import *
 pd.options.mode.chained_assignment = None  # default='warn'
-from spectra_process import * # get_spec_df_from_pkl, get_spec_df_from_ms2, entropy_sim_per_peak, get_similarity
+from spectra_process import * # get_spec_df_from_pkl, get_spec_df_from_ms2, entropy_sim_per_peak, get_similarity, Convert_JUMPlib_csv2pepXML
 
 import configparser
 config = configparser.ConfigParser()
@@ -103,19 +103,42 @@ libtypeDict = {1:"tmt18_default", 2:"tmt11_default", 3:"tmt18_pho", 4:"tmt11_pho
 libtypename = libtypeDict[int(libtype)]
 
 
-
+# ++++ L_ID_allProtDict ++++
 #take all protein ppml file first
 all_prot_ppml = specLibFolder+"/intermediate/id_all_pep.ppml"
 #make all protein ppml file dataframe
 all_prot_ppmlDF = fileToDF(all_prot_ppml)
 id_prot = all_prot_ppmlDF[["PeptideSeqWithRealDelMass","Protein Accession #"]]
+# ++++ Combine_id_prot ++++
+# Step 1: Create the decoy version of id_prot
+Decoy_id_prot = id_prot.copy()
+Decoy_id_prot["PeptideSeqWithRealDelMass"] = 'Decoy_' + Decoy_id_prot["PeptideSeqWithRealDelMass"]
+Decoy_id_prot["Protein Accession #"] = 'Decoy_' + Decoy_id_prot["Protein Accession #"]
+# Step 2: Combine the original and decoy versions into one dataframe
+Combine_id_prot = pd.concat([id_prot, Decoy_id_prot], ignore_index=True)
+
 #rename names for consistency and groupby peptide ID and get accession separated by ,
-idProtDF = id_prot.groupby('PeptideSeqWithRealDelMass').agg( lambda x: ','.join(list(x))).reset_index()
+idProtDF = Combine_id_prot.groupby('PeptideSeqWithRealDelMass').agg( lambda x: ','.join(list(x))).reset_index()
 #protein maped to peptide dataframe
 # print (idProtDF.columns)
 idProtDF.rename(columns = {"PeptideSeqWithRealDelMass":"Peptide","Protein Accession #":"Protein"}, inplace=True)
 L_ID_allProtDict = dict(zip(idProtDF.Peptide, idProtDF.Protein))
 
+
+# ++++ L_ID_prevAADict,L_ID_nextAADict ++++
+#take uni protein ppml file first
+uni_prot_ppml = specLibFolder+"/intermediate/id_uni_pep.ppml"
+#make uni protein ppml file dataframe
+uni_prot_ppmlDF = fileToDF(uni_prot_ppml)
+id_pept = uni_prot_ppmlDF[["PeptideSeqWithRealDelMass","Peptides"]]
+# get pep_prev_aa, pep_next_aa
+id_pept["pep_prev_aa"] = id_pept.apply(lambda x: x["Peptides"].split(".")[0], axis=1)
+id_pept["pep_next_aa"] = id_pept.apply(lambda x: x["Peptides"].split(".")[-1], axis=1)
+id_pept.rename(columns = {"PeptideSeqWithRealDelMass":"Peptide"}, inplace=True)
+id_pept_prev = id_pept[["Peptide","pep_prev_aa"]]
+id_pept_next = id_pept[["Peptide","pep_next_aa"]]
+L_ID_prevAADict = dict(zip(id_pept_prev.Peptide, id_pept_prev.pep_prev_aa))
+L_ID_nextAADict = dict(zip(id_pept_next.Peptide, id_pept_next.pep_next_aa))
 
 
 #set current directory as working directory
@@ -285,15 +308,25 @@ write_log (logFile,"Total candidates psms (all Ranks) before filtering = {}".for
 
 
 # consolidation of one psms to one scan for TMT data
-printDF2Rank1, printDF2 = postsearchProcessing(expDF, final_result, outputFolder,tmt,logFile, exp_ms2, L_ID_allProtDict) #sta_AA helps us to see if the data is TMT or not {'K': 304.2071453, 'C': 57.02146, 'n': 304.2071453} #for tmt K and n values are equal
+printDF2Rank1, printDF2 = postsearchProcessing(expDF, final_result, outputFolder,tmt,logFile, exp_ms2, L_ID_allProtDict,L_ID_prevAADict,L_ID_nextAADict) #sta_AA helps us to see if the data is TMT or not {'K': 304.2071453, 'C': 57.02146, 'n': 304.2071453} #for tmt K and n values are equal
 
 #### RT Infer and Score ####
 searchFile = outputFolder+"/"+outputFolder+".1.csv"
 
-mzxml = exp_ms2.split(".ms2")[0]+".mzXML"
+#mzxml = exp_ms2.split(".ms2")[0]+".mzXML"
+mzxml_1 = exp_ms2.split(".ms2")[0]+".mzXML"
+mzxml_2 = exp_ms2.split(".ms2")[0]+".mzML"
+mzxml = mzxml_1
+if os.path.isfile( mzxml_2 ):
+    mzxml = mzxml_2
 
 # print (mzxml)
 rt_score(searchFile, mzxml, outputFolder, logFile)
+
+
+# Convert_JUMPlib_csv2pepXML
+searchFile_all = outputFolder+"/"+outputFolder+".allRanks.csv"
+Convert_JUMPlib_csv2pepXML(searchFile_all)
 
 
 cmd2 = "cp "+params_file+" "+outputFolder

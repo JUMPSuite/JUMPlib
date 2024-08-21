@@ -120,8 +120,13 @@ except:
 #idtxt = "sum_jumpf/ID.txt"  #this we need for advanced annotation of L in ms2 file after consensus
 #mzXMLs = glob.glob(mzxml_path+"/*/*.mzXML")
 
+# ++++ raw_data_type ++++
+raw_data_type = "mzXML"
+if len( glob.glob(mzxml_path+"/*.mzML") )>0:
+    raw_data_type = "mzML"
+
 #check if mzxml file are in mzXML_possible
-mzXML_possible = getOrderedMzxmlList(mzxml_path, orderedFraction)
+mzXML_possible = getOrderedMzxmlList(mzxml_path, orderedFraction,raw_data_type)
 
 #this checks if the mzXML file is in the mzxml_path or inside the fraction folder in mzxml_path
 mzXMLs = []
@@ -129,8 +134,8 @@ for mzfile in mzXML_possible:
     if os.path.exists(mzfile):
         mzXMLs.append(mzfile)
     else:
-        fraction = os.path.split(mzfile)[-1].split(".mzXML")[0]
-        mzfile_2 = "{}/{}/{}.mzXML".format(dirname(mzfile),fraction,fraction)
+        fraction = os.path.split(mzfile)[-1].split(".{}".format(raw_data_type))[0]
+        mzfile_2 = "{}/{}/{}.{}".format(dirname(mzfile),fraction,fraction,raw_data_type)
         mzXMLs.append(mzfile_2)
 
 #keep only ms2 based on ordered fraction. In case someone wants to just use subset of fraction, we need to control program to generate subset ms2
@@ -139,14 +144,14 @@ ms2List = []
 exp_list = []
 
 for mzXML in mzXMLs:
-    tail = os.path.split(mzXML)[-1].split(".mzXML")[0]
+    tail = os.path.split(mzXML)[-1].split(".{}".format(raw_data_type))[0]
     exp_list.append(tail)
     pickedMS2 = glob.glob(resultsDirectory+"/ms2/"+tail+".theo.ms2pep")[0]
     ms2List.append(pickedMS2)
     
 
 
-write_log ("  The mzXML files are ordered for RT inference program.\nA total of {} files are used for libary generation\n".format(len(mzXMLs)))
+write_log ("  The {} files are ordered for RT inference program.\nA total of {} files are used for libary generation\n".format(raw_data_type,len(mzXMLs)))
 
 #Get RT information
 #this is now changed based on Ji-Hoon's new program

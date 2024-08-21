@@ -68,7 +68,7 @@ repository _is_ the entire installation.
 Once the conda environment (JUMPlib) is activated
 
 1. make a working directory
-2. keep all the mzXML files in the same directory
+2. keep all the mzXML or mzML files in the same directory
 3. copy the parameter file from [parameterFiles](./parameterFiles) to the same directory
 4. make necessary changes for the parameters 
 5. Run the command below
@@ -76,7 +76,7 @@ Once the conda environment (JUMPlib) is activated
 a. Library generation
 ```
 Preprocessing 
-jump_lib -pp jump_lib_preprocess.params *.mzXML 
+jump_lib -pp jump_lib_preprocess.params *.mzXML/*.mzML 
 
 Library generation
 jump_lib -d jump_lib_gen.params
@@ -88,7 +88,7 @@ Note: We also provide the comprehensive TMT libraries so you may skip Library ge
 
 b. Library searching (with presearch and without presearch)
 ```
-jump_lib -pp jump_preprocess.params *.mzXML
+jump_lib -pp jump_preprocess.params *.mzXML/*.mzML
 jump_lib -s jumplib_search.params
 jump_lib -pp_s jumplib_search.params
 ```

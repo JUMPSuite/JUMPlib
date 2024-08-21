@@ -47,7 +47,7 @@ def TMTorNot(sta_AA):
 
 
 
-def postsearchProcessing(expDF, final_result, outputFolder,tmt,logFile, exp_ms2, L_ID_allProtDict):
+def postsearchProcessing(expDF, final_result, outputFolder,tmt,logFile, exp_ms2, L_ID_allProtDict,L_ID_prevAADict,L_ID_nextAADict):
     
     expDF["key"] = expDF.scan.astype("str")+"."+expDF.charge.astype("str")+"."+expDF.prec_MZ.astype("str")
     expDF["simMS2"] = expDF["key"].map(final_result)
@@ -62,12 +62,12 @@ def postsearchProcessing(expDF, final_result, outputFolder,tmt,logFile, exp_ms2,
 
     #we now split simMS2_Ranked
 
-    expDF_simMS2_dropNA_split[["L_ID","Library_Match_score (DP)","RT","Peptide_ID","Charge_check","Prec_MZ_theoretical","Rank (PSMS)"]]=expDF_simMS2_dropNA_split.simMS2_Ranked.str.split(";",expand=True) 
+    expDF_simMS2_dropNA_split[["L_ID","Library_Match_score (DP)","RT","Peptide_ID","Charge_check","Prec_MZ_theoretical","Rank (PSMS)","deltacn","num_matched_ions","tot_num_ions"]]=expDF_simMS2_dropNA_split.simMS2_Ranked.str.split(";",expand=True) 
 
     #convert string scores to float scores
     expDF_simMS2_dropNA_split["JDscore"] = expDF_simMS2_dropNA_split["Library_Match_score (DP)"].astype("float")
 
-    printCols = ['scan', 'charge', '[M+H]+', 'prec_MZ', 'L_ID', 'RT', 'Peptide_ID','Rank (PSMS)','Prec_MZ_theoretical', 'JDscore']
+    printCols = ['scan', 'charge', '[M+H]+', 'prec_MZ', 'L_ID', 'RT', 'Peptide_ID','Rank (PSMS)','Prec_MZ_theoretical', 'JDscore','deltacn','num_matched_ions','tot_num_ions']
     printDF = expDF_simMS2_dropNA_split[printCols]
     printDF[["plain_peptide","pepLength"]] = printDF.apply(plainPeptide, axis=1)
     printDF2 = printDF.sort_values(by=["JDscore"], ascending=False)
@@ -88,12 +88,14 @@ def postsearchProcessing(expDF, final_result, outputFolder,tmt,logFile, exp_ms2,
     printDF2["ppm"] = printDF2.apply(lambda x: ppmCalc(x.Prec_MZ_theoretical,x.prec_MZ), axis=1)
     printDF2["abs_dPrecMZ"] = printDF2["ppm"].abs()
     printDF2[["plain_peptide","pepLength"]] = printDF2.apply(plainPeptide, axis=1)
+    printDF2["pep_prev_aa"] = printDF2.Peptide_ID.map(L_ID_prevAADict)
+    printDF2["pep_next_aa"] = printDF2.Peptide_ID.map(L_ID_nextAADict)
 
     ###### RENAME COLUMNS FOR OUTPUT FILES ###############
     renameColsDict = {"Peptide_ID":"Peptide","spectrum":"Outfile","[M+H]+":"measuredMH"}
 
     printDF2.rename(columns=renameColsDict, inplace=True)
-    displayCols = ["scan","Peptide","Protein","Outfile","measuredMH","calcMH","ppm","JDscore","abs_dPrecMZ","plain_peptide","pepLength", "L_ID", "RT","Rank (PSMS)", "Type"]
+    displayCols = ["scan","Peptide","Protein","Outfile","measuredMH","calcMH","ppm","JDscore","abs_dPrecMZ","plain_peptide","pepLength", "L_ID", "RT","Rank (PSMS)", "Type","deltacn","num_matched_ions","tot_num_ions","pep_prev_aa","pep_next_aa"]
 
 
 

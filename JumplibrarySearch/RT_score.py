@@ -56,7 +56,7 @@ def rt_score(searchFile, mzxml, outputFolder, logFile):
 
     psms["z"]=psms.Outfile.str.split(".", expand =True)[3]
     psms["keys"] = psms.Peptide+"__"+psms.z.astype("str")
-    runName = os.path.basename(mzxml).split(".mzXML")[0]
+    runName = os.path.basename(mzxml).split(".")[0]
 
 
     # get the quantile based psms for best scoring psms

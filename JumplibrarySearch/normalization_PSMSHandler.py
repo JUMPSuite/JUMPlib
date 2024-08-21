@@ -379,6 +379,9 @@ def rankMatchedPSMS(row):
     L_PEP = [] #Peptide information
     charge = [] #preadded in peptide
     precMZ = [] #preadded in peptide
+    delCN = [] # added newly 070924
+    match_num = [] # added newly 070924
+    total_num = [] # added newly 070924
     for match in allMatchesList:
         all_vals = match.split(";")
         L_ID.append(all_vals[0]) #make sure the index order is accurate 0=L_ID, 1= DP, 2 = RT, 3 = L_PEP
@@ -387,6 +390,9 @@ def rankMatchedPSMS(row):
         L_PEP.append(all_vals[3])
         charge.append(all_vals[4])
         precMZ.append(all_vals[5])
+        delCN.append(all_vals[6])
+        match_num.append(all_vals[7])
+        total_num.append(all_vals[8])
 
         # if all_vals[3] == "Decoy":
         #     charge.append(str(np.nan))
@@ -399,7 +405,8 @@ def rankMatchedPSMS(row):
     
     ranked_psms = [] #empty list updating ranked psms
     for val,i in enumerate(ind): #iterating over top score index #val is index of index
-        addVal = L_ID[i]+";"+str(DP[i])+";"+RT[i]+";"+L_PEP[i]+";"+charge[i]+";"+precMZ[i]+";Rank"+str(val+1) #add Rank information starting from 1
+        #addVal = L_ID[i]+";"+str(DP[i])+";"+RT[i]+";"+L_PEP[i]+";"+charge[i]+";"+precMZ[i]+";Rank"+str(val+1) #add Rank information starting from 1
+        addVal = f"{L_ID[i]};{DP[i]};{RT[i]};{L_PEP[i]};{charge[i]};{precMZ[i]};Rank{val+1};{delCN[i]};{match_num[i]};{total_num[i]}"
         rankedPSMS.append(addVal)
     
     return ",".join(rankedPSMS) #join the list with 

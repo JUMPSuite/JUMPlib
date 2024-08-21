@@ -474,7 +474,10 @@ def librarySearchMain(expDF,libDF,top_ions_control, min_top_ions, top_ions,ms2_t
             # e_fulllib_intens=[]
             # r_fulllib_intens=[]
             for ino in range(0,len(lib_inten)):
-                delta_mz2 = ms2_tol*lib_mz[ino]*1e-6
+                if ms2_tol>1.0:
+                    delta_mz2 = ms2_tol*lib_mz[ino]*1e-6
+                else:
+                    delta_mz2 = ms2_tol
                 left_lim2 = lib_mz[ino]-delta_mz2
                 right_lim2 = lib_mz[ino]+delta_mz2
                 pos=np.nonzero((exp_mz>=left_lim2) & (exp_mz<=right_lim2))[0]
@@ -526,6 +529,9 @@ def librarySearchMain(expDF,libDF,top_ions_control, min_top_ions, top_ions,ms2_t
                 max_row2=row2
                 max_idx=pno-1
         
+        # ++++get_delta_cn++++
+        [delta_cn,high2low_rank]=get_delta_cn_rank(psm_score)
+        
         if method == "normalized_dot_product":
             psm_max = psm_score[max_idx]
             if psm_max[1]>=match_cutoff and psm_max[0]/psm_max[3]>=score_cutoff and psm_max[3]>=coverage_cutoff and min([psm_max[2],psm_max[4]])>=peplen_cutoff:
@@ -542,15 +548,21 @@ def librarySearchMain(expDF,libDF,top_ions_control, min_top_ions, top_ions,ms2_t
         
         for ino in range(0,len(psm_score)):
             cur_score = psm_score[ino][0]
-            if cur_score<=0.05:
+            if cur_score<=0.05 or high2low_rank[ino]>=5:
                 continue
+            
+            # ++++cur_delta_cn, cur_matched_num, cur_total_num++++
+            cur_delta_cn = delta_cn[ino][0]
+            cur_matched_num = psm_score[ino][1]
+            cur_total_num = psm_score[ino][2]
             
             row2 = np_arr2[candidate_list[ino]]
             L_ID = row2[mz_cols2.index("L_ID")]
             L_RT = row2[mz_cols2.index("RT")]
             L_peptide = row2[mz_cols2.index("L_peptide")]
             # L_ID+";"+str(dp)+";"+str(L_RT)+";"+L_peptide
-            c_result = L_ID+";"+str(cur_score)+";"+str(L_RT)+";"+L_peptide
+            # c_result = L_ID+";"+str(cur_score)+";"+str(L_RT)+";"+L_peptide
+            c_result = f"{L_ID};{cur_score};{L_RT};{L_peptide};{cur_delta_cn};{cur_matched_num};{cur_total_num}"
             
             if scanKey not in dot_product_results.keys():
                 dot_product_results[scanKey] = [c_result]

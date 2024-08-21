@@ -41,12 +41,17 @@ mzxml_path = config["specLib"]["mzxml_path"]
 # ms2_path = config["specLib"]["ms2_path"]
 job_type = config["specLib"]["job_type"]
 
+# ++++ raw_data_type ++++
+raw_data_type = "mzXML"
+if len( glob.glob(mzxml_path+"/*.mzML") )>0:
+    raw_data_type = "mzML"
+
 # ms2_files_all = glob.glob(ms2_path+"/*.ms2")
-mz_files = glob.glob(mzxml_path+"/*.mzXML")
+mz_files = glob.glob(mzxml_path+"/*.{}".format(raw_data_type))
 # print (mz_files)
 
 def create_job_file(params_file,ms2File):
-    fileroot = ms2File.split("/")[-1].split(".mzXML")[0]
+    fileroot = ms2File.split("/")[-1].split(".{}".format(raw_data_type))[0]
     makedirectory(fileroot)
     path = os.getcwd()
 
@@ -54,7 +59,7 @@ def create_job_file(params_file,ms2File):
     os.system("mkdir "+log_dir)
     job_header = "#!/bin/bash\n#BSUB -P JUMP-lib-s\n#BSUB -J spectral library search\n#BSUB -oo "+log_dir+"/log.out\n#BSUB -eo "+log_dir+"/error.err\n#BSUB -n 1\n"
     job_body_pre = "python {}/preprocess/v2.3/DeisotopeMS1.py {} {}\n".format(dirname(source_path),"jump_preprocess.params",ms2File) 
-    ms2File = ms2File.split(".mzXML")[0]+"/"+fileroot+".ms2"
+    ms2File = ms2File.split(".{}".format(raw_data_type))[0]+"/"+fileroot+".ms2"
     job_body1 = "python {}/librarySearch.py {} {}".format(source_path,params_file,ms2File)
     # print (job_body1)
     jobfile = fileroot+".sh"
@@ -100,8 +105,8 @@ for mzFile in mz_files:
         print (cmd)
         # cmd = "python /home/spoudel1/bin/python/JUMPp-lib_v5/preprocess/v2.3/DeisotopeMS1.py "+preprocess_param_file+" "+mzFile
         os.system(cmd)
-        newFolder = mzFile.split(".mzXML")[0].split("/")[-1]
-        ms2File = mzFile.split(".mzXML")[0]+"/"+newFolder+".ms2"
+        newFolder = mzFile.split(".{}".format(raw_data_type))[0].split("/")[-1]
+        ms2File = mzFile.split(".{}".format(raw_data_type))[0]+"/"+newFolder+".ms2"
         cmd =  "python {}/librarySearch.py {} {}".format(source_path,params_file,ms2File)
         print (cmd)
         os.system(cmd)

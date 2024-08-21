@@ -10,7 +10,7 @@ import shutil
 import glob
 import argparse
 from datetime import datetime
-from pyteomics import mzxml,mass
+from pyteomics import mzxml,mzml,mass
 from numpy import *
 from DeisotopeMS1Mono import *
 from tmtCorrection_mzXML import *
@@ -102,7 +102,7 @@ def get_mass_error_by_bin(MS_MassError,MS1_index,MS2_index,tol_ppm,thresholdPerc
 	
 	return [MS1_index,MS2_index,scan_ppm]
 
-def ReadmzXML(t_mzXML_fullfile,tmt,nrunning_mode):
+def ReadmzXML(t_mzXML_fullfile,raw_data_type,tmt,nrunning_mode):
 	# Read mzXML
 	nMS1=0
 	nMS2=0
@@ -128,20 +128,23 @@ def ReadmzXML(t_mzXML_fullfile,tmt,nrunning_mode):
 		print('%s: does not exist!' % (t_mzXML_fullfile))
 		return [nMS1,nMS2,scan_ppm]
 	
+	# mzFileToNumpyArr
+	[dfmzXML,np_arr1,np_arr2] = mzFileToNumpyArr(t_mzXML_fullfile,raw_data_type)
+	
 	# mass correction
 	thresholdPercentage = 0.05
 	nTMT = len(tmt)
 	if nTMT==0:
 		referenceMasses = [445.1200245337]
 		tol_ppm = 50
-		[MS1_index,MS2_index,MS1_MassError] = MS1MassCorrection(t_mzXML_fullfile,referenceMasses,tol_ppm)
+		[MS1_index,MS2_index,MS1_MassError] = MS1MassCorrection(np_arr1,np_arr2,referenceMasses,tol_ppm)
 		[MS1_index,MS2_index,scan_ppm]=get_mass_error_by_bin(MS1_MassError,MS1_index,MS2_index,tol_ppm,thresholdPercentage)
 	else:
 		tol_ppm = 50
-		[MS1_index,MS2_index,MS2_MassError] = MS2MassCorrection(t_mzXML_fullfile,tmt,tol_ppm)
+		[MS1_index,MS2_index,MS2_MassError] = MS2MassCorrection(np_arr1,np_arr2,tmt,tol_ppm)
 		if MS2_index.shape[0]<10000:
 			tol_ppm = 20
-			[MS1_index,MS2_index,MS2_MassError] = MS2MassCorrection(t_mzXML_fullfile,tmt,tol_ppm)
+			[MS1_index,MS2_index,MS2_MassError] = MS2MassCorrection(np_arr1,np_arr2,tmt,tol_ppm)
 		
 		[MS1_index,MS2_index,scan_ppm]=get_mass_error_by_bin(MS2_MassError,MS1_index,MS2_index,tol_ppm,thresholdPercentage)
 	
@@ -161,62 +164,73 @@ def ReadmzXML(t_mzXML_fullfile,tmt,nrunning_mode):
 	
 	# spectra
 	#print('total scans:')
-	reader = mzxml.MzXML(t_mzXML_fullfile)
-	with reader:
-		for spec in reader:
-			msLevel = int(spec["msLevel"])
-			msScan = int(spec["num"])
-			if msLevel==1:
-				# MS1
-				ms1scan = msScan
-				ms1npk = int(spec["peaksCount"])
-				ms1rt = float(spec["retentionTime"]) # min
-				# ms1type_s = spec["filterLine"][0:4]
-				ms1mz = spec["m/z array"]
-				ms1inten = spec["intensity array"]
-				if ms1npk>200:
-					baseline = Getbaseline(ms1inten)/2.0
-					IX=nonzero(ms1inten>=min(baseline,500.0))[0]
-					ms1npk=len(IX)
-					ms1mz=ms1mz[IX]
-					ms1inten=ms1inten[IX]
-				else:
-					baseline = 0.0
-				# # correct ms1
-				# cur_massshift=MS1_index[ms1_fno,4]
-				# if cur_massshift!=0:
-					# ms1mz = massCorrectionFunction(ms1mz,cur_massshift)
-				
-				MS1_index[ms1_fno,0:4]=[ms1scan,ms1rt,ms1npk,baseline]# MS1_index[ms1_fno,4]: massshift
-				#print(MS1_index[ms1_fno,0:5])
-				ms1_fno = ms1_fno+1
-				MS1_peaks[ms1_pno:ms1_pno+ms1npk,0]=ms1mz
-				MS1_peaks[ms1_pno:ms1_pno+ms1npk,1]=ms1inten
-				ms1_pno = ms1_pno+ms1npk
-			if msLevel==2:
-				# MS2
-				ms2scan = msScan
-				ms2npk = int(spec["peaksCount"])
-				ms2rt = float(spec["retentionTime"]) # min
-				ms2type_s = spec["filterLine"][0:4]
-				activation_s = spec["precursorMz"][0]["activationMethod"]
-				pre_mz = float(re.search(r"ms2 ([0-9.]+)\@", spec["filterLine"]).group(1))
-				pre_ch = 2
-				ms2mz = spec["m/z array"]
-				ms2inten = spec["intensity array"]
-				[ms2type, activation, fragtype] = Get_ntype(ms2type_s,activation_s)
-				# baseline = 0.0
-				
-				if nrunning_mode!=4:# non-debug mode
-					MS2_index[ms2_fno,0:7]=[ms1scan,ms1rt,ms2scan,pre_mz,pre_ch,fragtype,ms2npk]# MS2_index[ms2_fno,7]: massshift
-				else:# nrunning_mode=4, debug mode
-					MS2_index[ms2_fno,0:7]=[ms1scan,ms2rt,ms2scan,pre_mz,pre_ch,fragtype,ms2npk]# MS2_index[ms2_fno,7]: massshift
-				#print(MS2_index[ms2_fno,0:8])
-				ms2_fno = ms2_fno+1
-				MS2_peaks[ms2_pno:ms2_pno+ms2npk,0]=ms2mz
-				MS2_peaks[ms2_pno:ms2_pno+ms2npk,1]=ms2inten
-				ms2_pno = ms2_pno+ms2npk
-			#print(msScan, end="\r")
+	mz_cols0 = list(dfmzXML.columns)
+	np_arr0 = dfmzXML.to_numpy()
+	for tno in range(0,len(np_arr0)):
+		row0=np_arr0[tno]
+		num = row0[mz_cols0.index("num")]
+		msLevel = row0[mz_cols0.index("msLevel")]
+		peaksCount = row0[mz_cols0.index("peaksCount")]
+		retentionTime = row0[mz_cols0.index("retentionTime")]
+		msType = row0[mz_cols0.index("msType")]
+		activationMethod = row0[mz_cols0.index("activationMethod")]
+		precursorMz = row0[mz_cols0.index("precursorMz")]
+		precursorCh = row0[mz_cols0.index("precursorCh")]
+		mz_array = array(row0[mz_cols0.index("m/z array")])
+		intensity_array = array(row0[mz_cols0.index("intensity array")])
+		
+		msScan = num
+		if msLevel==1:
+			# MS1
+			ms1scan = msScan
+			ms1npk = peaksCount
+			ms1rt = retentionTime # min
+			# ms1type_s = msType
+			ms1mz = mz_array
+			ms1inten = intensity_array
+			if ms1npk>200:
+				baseline = Getbaseline(ms1inten)/2.0
+				IX=nonzero(ms1inten>=min(baseline,500.0))[0]
+				ms1npk=len(IX)
+				ms1mz=ms1mz[IX]
+				ms1inten=ms1inten[IX]
+			else:
+				baseline = 0.0
+			# # correct ms1
+			# cur_massshift=MS1_index[ms1_fno,4]
+			# if cur_massshift!=0:
+				# ms1mz = massCorrectionFunction(ms1mz,cur_massshift)
+			
+			MS1_index[ms1_fno,0:4]=[ms1scan,ms1rt,ms1npk,baseline]# MS1_index[ms1_fno,4]: massshift
+			#print(MS1_index[ms1_fno,0:5])
+			ms1_fno = ms1_fno+1
+			MS1_peaks[ms1_pno:ms1_pno+ms1npk,0]=ms1mz
+			MS1_peaks[ms1_pno:ms1_pno+ms1npk,1]=ms1inten
+			ms1_pno = ms1_pno+ms1npk
+		if msLevel==2:
+			# MS2
+			ms2scan = msScan
+			ms2npk = peaksCount
+			ms2rt = retentionTime # min
+			ms2type_s = msType
+			activation_s = activationMethod
+			pre_mz = precursorMz
+			pre_ch = precursorCh
+			ms2mz = mz_array
+			ms2inten = intensity_array
+			[ms2type, activation, fragtype] = Get_ntype(ms2type_s,activation_s)
+			# baseline = 0.0
+			
+			if nrunning_mode!=4:# non-debug mode
+				MS2_index[ms2_fno,0:7]=[ms1scan,ms1rt,ms2scan,pre_mz,pre_ch,fragtype,ms2npk]# MS2_index[ms2_fno,7]: massshift
+			else:# nrunning_mode=4, debug mode
+				MS2_index[ms2_fno,0:7]=[ms1scan,ms2rt,ms2scan,pre_mz,pre_ch,fragtype,ms2npk]# MS2_index[ms2_fno,7]: massshift
+			#print(MS2_index[ms2_fno,0:8])
+			ms2_fno = ms2_fno+1
+			MS2_peaks[ms2_pno:ms2_pno+ms2npk,0]=ms2mz
+			MS2_peaks[ms2_pno:ms2_pno+ms2npk,1]=ms2inten
+			ms2_pno = ms2_pno+ms2npk
+		#print(msScan, end="\r")
 	#print('')
 	
 	#save the MS1 info
@@ -268,13 +282,13 @@ def Get_hostname(update_path):
 		c_cluster = 'spiderscluster'
 	return c_cluster
 
-def GetMonoInBatch(t_mzXML_fullfile,jump_params,scan_ppm,nrunning_mode):
+def GetMonoInBatch(t_mzXML_fullfile,raw_data_type,jump_params,scan_ppm,nrunning_mode):
 	# Get Mono Peaks In Batch
 	
 	# check extracted MS files in 'datapath/filename'
 	[resultpath,tname] = os.path.split(t_mzXML_fullfile)
 	
-	c_mzXML_fullfile = resultpath+'.mzXML'
+	c_mzXML_fullfile = resultpath+'.{}'.format(raw_data_type)
 	params = Get_params(jump_params)
 	nprocessor=params['nprocessor']# no of multiprocessing nodes
 	parallel_method=params['parallel_method']# parallel method, 1: multiprocessing package, 2: submitting LSF jobs
@@ -622,7 +636,7 @@ def main():
 	# args
 	parser = argparse.ArgumentParser(description="JUMP Preprocessing", prog="V2.3.0",usage=msg())
 	parser.add_argument("jump_preprocess_paramfile", help="jump preprocess parameter file")
-	parser.add_argument("mzXML",help="single or list of mzXML files",nargs='+')
+	parser.add_argument("mzXML",help="single or list of mzXML/mzML files",nargs='+')
 	args = parser.parse_args()
 	
 	# jump_params
@@ -634,16 +648,21 @@ def main():
 	# mzXMLs
 	mzXMLs = args.mzXML
 	mzXML_path = os.getcwd()
-	if mzXMLs == ["*.mzXML"]:# '*.mzXML'
-		mzXMLs = glob.glob(mzXML_path+"/*.mzXML")
+	# ++++ raw_data_type ++++
+	raw_data_type = "mzXML"
+	if '.mzML' in mzXMLs[0]:
+		raw_data_type = "mzML"
+	
+	if mzXMLs == ["*.{}".format(raw_data_type)]:# '*.mzXML'
+		mzXMLs = glob.glob(mzXML_path+"/*.{}".format(raw_data_type))
 		if len(mzXMLs)==0:
-			print('mzXML does not exist: '+mzXML_path)
+			print('{} does not exist: {}'.format(raw_data_type,mzXML_path))
 			return
-	elif len(mzXMLs)==1 and len(mzXMLs[0])>7 and mzXMLs[0][-7:]=='*.mzXML':# 'datapath/*.mzXML'
+	elif len(mzXMLs)==1 and "*.{}".format(raw_data_type) in mzXMLs[0]:# 'datapath/*.mzXML'
 		datapath=os.path.split(mzXMLs[0])[0]
 		mzXMLs = glob.glob(mzXMLs[0])
 		if len(mzXMLs)==0:
-			print('mzXML does not exist: '+datapath)
+			print('{} does not exist: {}'.format(raw_data_type,datapath))
 			return
 	else:
 		mzXMLs_new =[]
@@ -709,10 +728,10 @@ def main():
 		print("  Preprocessing data: %s" % (tname))
 		print("  Start: %s\n" % (dt_string))
 		
-		print("  Converting .raw into .mzXML file")
-		print("  MZXML file (./%s) has already existed" % (tname))
-		print("  Extracting peaks from .mzXML")
-		[nMS1,nMS2,scan_ppm]=ReadmzXML(t_mzXML_fullfile,tmt,nrunning_mode)
+		print("  Converting .raw into .{} file".format(raw_data_type))
+		print("  {} file (./{}) has already existed".format(raw_data_type,tname))
+		print("  Extracting peaks from .{}".format(raw_data_type))
+		[nMS1,nMS2,scan_ppm]=ReadmzXML(t_mzXML_fullfile,raw_data_type,tmt,nrunning_mode)
 		print("  Gathering scan information: %d of %d scans" % (nMS1+nMS2,nMS1+nMS2))
 		print("  There are %d MS and %d MS/MS in the entire run\n" % (nMS1,nMS2))
 		
@@ -732,7 +751,7 @@ def main():
 			
 			print("  Mass-shift correction has been finished\n")
 		
-		GetMonoInBatch(t_mzXML_fullfile,jump_params,scan_ppm,nrunning_mode)
+		GetMonoInBatch(t_mzXML_fullfile,raw_data_type,jump_params,scan_ppm,nrunning_mode)
 		
 		if nrunning_mode!=4:# non-debug mode
 			MS2_outfile1 = Change_ext(t_mzXML_fullfile,'.raw'+c_format)

@@ -12,13 +12,22 @@ def DP_Peng_similarity(p, q):
 #JUMPm --- dot product calculation
 def normalizedDotProduct(p, q):
     num = np.dot(np.sqrt(p),np.sqrt(q))
-    den1 = np.sum(p)
-    den2 = np.sum(q)
+    den1 = np.sum(p*p)
+    den2 = np.sum(q*q)
     if den1 * den2 == 0:
         normDotProduct = 0
     else:
         normDotProduct = num/np.sqrt(den1*den2)
     return normDotProduct
+
+# def normalizedDotProduct(e_intens,r_intens):
+    
+#     if np.sqrt( sum(e_intens*e_intens)*sum(r_intens*r_intens) )==0.0:
+#         e_sim=0.0
+#     else:
+#         e_sim = sum(e_intens*r_intens)/np.sqrt( sum(e_intens*e_intens)*sum(r_intens*r_intens) )
+    
+#     return e_sim
 
 #This function assumes that the preprocessing between spectra is already done and the feat spec and lib spec has matched ions
 #the ions that were missing in featSpec but present in libSpec has intensity 0

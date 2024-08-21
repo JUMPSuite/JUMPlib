@@ -1,7 +1,7 @@
 import pandas as pd
 import pyteomics
 from pyteomics import mass
-from pyteomics import mzxml
+from pyteomics import mzxml,mzml
 import numpy as np
 import os, sys
 from collections import Counter
@@ -12,6 +12,7 @@ import re
 import rpy2.robjects as ro
 from rpy2.robjects.vectors import FloatVector
 from elutionCases import *
+from process_ms3 import *
 
 
 class progressBar:
@@ -116,15 +117,202 @@ def mkdir(outputFolder):
         write_log ("Directory exist")
 
 
-def mzxml_2_df(mzxml):
-    x1 = pyteomics.mzxml.read(mzxml)  #reading mzXML file using pyteomics
-    df = pd.DataFrame([x for x in x1])  #dataframe of the mzXML file
-    return df
+def mzxml_2_df(mzFILE,raw_data_type):
+    #mzXcols = ["num","msLevel","peaksCount","retentionTime","msType","activationMethod","precursorMz","precursorCh","m/z array","intensity array","precursorIntensity","basePeakIntensity"]
+    if raw_data_type=="mzXML":
+        data = []
+        reader = mzxml.MzXML(mzFILE)
+        
+        ms3level = 0
+        for ino in range(0,100):
+            spec = reader[ino]
+            msLevel = int(spec["msLevel"])
+            if msLevel==3:
+                ms3level = 1
+            if ms3level==1:
+                break
+        
+        ms123scan_list = []
+        ms123scan_ms2_array = np.array([])
+        ms123scan_ms3_list = []
+        if ms3level==1:
+            [ms123scan_list, ms123scan_ms2_array, ms123scan_ms3_list] = Get_ms123scan_list_via_mzXML(reader)
+        
+        for ino in range(0,len(reader)):
+            spec = reader[ino]
+            num = int(spec["num"])
+            msLevel = int(spec["msLevel"])
+            peaksCount = int(spec["peaksCount"])
+            retentionTime = float(spec["retentionTime"]) # min
+            
+            if msLevel==3 or (msLevel==2 and ms3level==1 and num not in ms123scan_ms2_array):
+                continue
+            
+            try:
+                msType = spec["filterLine"][0:4]
+            except:
+                msType = "FTMS"
+            try:
+                activationMethod = spec["precursorMz"][0]["activationMethod"]
+            except:
+                activationMethod = "HCD"
+            if msLevel==1:
+                precursorMz = 0.0
+            else:
+                try:
+                    filterLine = spec["filterLine"] # converted from ReAdW
+                except:
+                    filterLine = "-" # converted from msconvert
+                if filterLine != "-":
+                    precursorMz = float(re.search(r"ms2 ([0-9.]+)\@", spec["filterLine"]).group(1)) # converted from ReAdW
+                else:
+                    precursorMz = int(float(spec["precursorMz"][-1]["precursorMz"])*1e4+0.4)/1e4 # converted from msconvert
+            try:
+                precursorCh = int(spec["precursorMz"][0]["precursorCharge"])
+            except:
+                precursorCh = 2
+            mz_array = spec["m/z array"]
+            intensity_array = spec["intensity array"]
+            try:
+                precursorIntensity = float(spec["precursorMz"][0]["precursorIntensity"])
+            except:
+                precursorIntensity = 0.0
+            basePeakIntensity = float(spec["basePeakIntensity"])
+            
+            if msLevel==2 and ms3level==1 and num in ms123scan_ms2_array:
+                pos1=np.nonzero( ms123scan_ms2_array==num )[0]
+                if len(pos1)>0:
+                    ms3scan = ms123scan_ms3_list[pos1[0]]
+                    ms3_spec = reader[ms3scan-1]
+                    ms3mz = ms3_spec["m/z array"]
+                    ms3inten = ms3_spec["intensity array"]
+                    [mz_array,intensity_array] = Merge_ms23(mz_array,intensity_array,ms3mz,ms3inten)
+                    peaksCount = len(mz_array)
+            
+            spectrum_data = {
+                "num": num,
+                "msLevel": msLevel,
+                "peaksCount": peaksCount,
+                "retentionTime": retentionTime,
+                "msType": msType,
+                "activationMethod": activationMethod,
+                "precursorMz": precursorMz,
+                "precursorCh": precursorCh,
+                "m/z array": mz_array,
+                "intensity array": intensity_array,
+                "precursorIntensity": precursorIntensity,
+                "basePeakIntensity": basePeakIntensity
+            }
+            
+            data.append(spectrum_data)
+        
+        dfmzXML = pd.DataFrame(data)
+        
+        # ms1 = dfmzXML.loc[dfmzXML.msLevel==1]     #ms1 level scans
+        # np_arr1 = ms1.to_numpy()
+        # ms2 = dfmzXML.loc[dfmzXML.msLevel==2]     #ms2 level scans
+        # np_arr2 = ms2.to_numpy()
+    elif raw_data_type=="mzML":
+        data = []
+        reader = mzml.MzML(mzFILE)
+        
+        ms3level = 0
+        for ino in range(0,100):
+            spec = reader[ino]
+            msLevel = spec['ms level']
+            if msLevel==3:
+                ms3level = 1
+            if ms3level==1:
+                break
+        
+        ms123scan_list = []
+        ms123scan_ms2_array = np.array([])
+        ms123scan_ms3_list = []
+        if ms3level==1:
+            [ms123scan_list, ms123scan_ms2_array, ms123scan_ms3_list] = Get_ms123scan_list_via_mzML(reader)
+        
+        for ino in range(0,len(reader)):
+            spec = reader[ino]
+            num = int(spec['id'].split('scan=')[-1])
+            msLevel = spec['ms level']
+            peaksCount = int(spec['defaultArrayLength'])
+            retentionTime = spec['scanList']['scan'][0]['scan start time'] # min
+            
+            if msLevel==3 or (msLevel==2 and ms3level==1 and num not in ms123scan_ms2_array):
+                continue
+            
+            try:
+                msType = spec['scanList']['scan'][0]['filter string'][0:4]
+            except:
+                msType = "FTMS"
+            try:
+                activationMethod = re.search(r"@(\D+)", spec['scanList']['scan'][0]['filter string']).group(1).upper()
+            except:
+                activationMethod = "HCD"
+            if msLevel==1:
+                precursorMz = 0.0
+            else:
+                try:
+                    precursorMz = float(re.search(r"ms2 ([0-9.]+)\@", spec['scanList']['scan'][0]['filter string']).group(1))
+                except:
+                    precursorMz = int(spec['precursorList']['precursor'][-1]['selectedIonList']['selectedIon'][0]['selected ion m/z']*1e4+0.4)/1e4
+            try:
+                precursorCh = spec['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['charge state']
+            except:
+                precursorCh = 2
+            mz_array = spec["m/z array"]
+            intensity_array = spec["intensity array"]
+            try:
+                precursorIntensity = spec['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['peak intensity']
+            except:
+                precursorIntensity = 0.0
+            basePeakIntensity = spec['base peak intensity']
+            
+            if msLevel==2 and ms3level==1 and num in ms123scan_ms2_array:
+                pos1=np.nonzero( ms123scan_ms2_array==num )[0]
+                if len(pos1)>0:
+                    ms3scan = ms123scan_ms3_list[pos1[0]]
+                    ms3_spec = reader[ms3scan-1]
+                    ms3mz = ms3_spec["m/z array"]
+                    ms3inten = ms3_spec["intensity array"]
+                    [mz_array,intensity_array] = Merge_ms23(mz_array,intensity_array,ms3mz,ms3inten)
+                    peaksCount = len(mz_array)
+            
+            spectrum_data = {
+                "num": num,
+                "msLevel": msLevel,
+                "peaksCount": peaksCount,
+                "retentionTime": retentionTime,
+                "msType": msType,
+                "activationMethod": activationMethod,
+                "precursorMz": precursorMz,
+                "precursorCh": precursorCh,
+                "m/z array": mz_array,
+                "intensity array": intensity_array,
+                "precursorIntensity": precursorIntensity,
+                "basePeakIntensity": basePeakIntensity
+            }
+            
+            data.append(spectrum_data)
+        
+        dfmzXML = pd.DataFrame(data)
+        
+        # ms1 = dfmzXML.loc[dfmzXML.msLevel==1]     #ms1 level scans
+        # np_arr1 = ms1.to_numpy()
+        # ms2 = dfmzXML.loc[dfmzXML.msLevel==2]     #ms2 level scans
+        # np_arr2 = ms2.to_numpy()
+    else:
+        data = {"num": [], "msLevel": [], "peaksCount": [], "retentionTime": [], "msType": [], "activationMethod": [], "precursorMz": [], "precursorCh": [], "m/z array": [], "intensity array": [], "precursorIntensity": [], "basePeakIntensity": []}
+        dfmzXML = pd.DataFrame(data)
+        # np_arr1 = []
+        # np_arr2 = []
+    
+    return dfmzXML#,np_arr1,np_arr2
 
 
 
-def getMs2ToSurvey(mzxml):
-    df = mzxml_2_df(mzxml)
+def getMs2ToSurvey(mzxml,raw_data_type):
+    df = mzxml_2_df(mzxml,raw_data_type)
     scans = list(df["num"])
     mslevel = list(df["msLevel"])
     rt = list(df["retentionTime"])
@@ -210,15 +398,16 @@ def getPrecursorPeak(dfMz, surveyScanNumber,nominalPrecMz,  rt_higher, rt_lower,
 
 
 
-def get_rt(psms, mzxml): #psms = df of idtxt
+def get_rt(psms, mzxml, raw_data_type): #psms = df of idtxt
     
-    ms2ToSurvey,rt_dict,all_ms1_scans, dfMz = getMs2ToSurvey(mzxml)
+    ms2ToSurvey,rt_dict,all_ms1_scans, dfMz = getMs2ToSurvey(mzxml, raw_data_type)
     
     mzXMLBaseName = os.path.basename(mzxml).split(".")[0]
     psms_run = psms.loc[psms["Outfile"].str.contains(mzXMLBaseName+"\.")]    # Extract PSMs from FTLD_Batch2_F50.mzXML
     
     keys = list(set(psms_run["keys"]))
     
+
     # list of outfiles
     proton = mass.calculate_mass(formula='H+') #proron mono mass
 
@@ -235,23 +424,26 @@ def get_rt(psms, mzxml): #psms = df of idtxt
     for key in keys:
         prec_key_cnt +=1 
         
-        if prec_key_cnt%1000 == 0:
+        if prec_key_cnt%10000 == 0:
             print ("Total precursors {} analyzed out of {}".format(prec_key_cnt,len(keys)))
         
         psms_subset = psms_run.loc[psms_run["keys"]==key]
-        pep, z = key.split("_")
+        # pep, z = key.split("_")
         
         np_arr = psms_subset.to_numpy()
         for row in np_arr:
             
             keys_list.append(key)
             outfiles = str(row[mz_cols.index("Outfile")])
-            [_, psmScanNum, _, _, _] = os.path.basename(outfiles).split(".")
+            [_, psmScanNum,_ , _] = os.path.basename(outfiles).split(".")
+            
+            pep = str(row[mz_cols.index("Peptide")])
+            z = str(row[mz_cols.index("z")])
             
             
             precRt = rt_dict[int(psmScanNum)]
             
-            df = dfMz[dfMz["num"]==psmScanNum]
+            df = dfMz[dfMz["num"]==int(psmScanNum)]
             
             
             intArray = np.array(df["intensity array"].to_list()[0])
@@ -755,6 +947,10 @@ def inferRT(idtxt, runs, eps):
     ext_data_dict = {} # this dictionary has runwise dataframes 
 
     runName_list = []
+    # ++++ raw_data_type ++++
+    raw_data_type = "mzXML"
+    if '.mzML' in runs[0]:
+        raw_data_type = "mzML"
 
 #     print (runs)
     for run in runs:
@@ -765,7 +961,7 @@ def inferRT(idtxt, runs, eps):
         
         
         print("  RT of every identified peptide in {} is being inferred and assigned".format(runName))
-        out_table = get_rt(psms, run)
+        out_table = get_rt(psms, run, raw_data_type)
         res_f1 = extractRT(out_table, eps)
         
         #update dictionary
@@ -793,10 +989,10 @@ def inferRT(idtxt, runs, eps):
 
 
 
-def getOrderedMzxmlList(mzxml_path, orderedFraction): #orderedFraction = file that contians ordered fractions with one fraction in one row. 
+def getOrderedMzxmlList(mzxml_path, orderedFraction,raw_data_type): #orderedFraction = file that contians ordered fractions with one fraction in one row. 
     #this updates the new mzXML list based on the ordered fraction list provided
     df = pd.read_csv(orderedFraction, delimiter="\t", header=None)
-    df["mzXML"] = mzxml_path+"/"+df[0]+".mzXML"
+    df["mzXML"] = mzxml_path+"/"+df[0]+".{}".format(raw_data_type)
     mzXML_list = list(df["mzXML"])
     return mzXML_list 
 

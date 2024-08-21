@@ -4,6 +4,8 @@ from scipy.stats import t
 import numpy.ma as ma
 from collections import OrderedDict, Counter
 from scipy.stats import spearmanr, pearsonr
+from process_ms3 import *
+
 class OrderedCounter(Counter, OrderedDict):
 	pass
 
@@ -151,6 +153,131 @@ def getReporterSummary(df, reporters):
 
     return res
 
+def readerToNumpyArr(reader,raw_data_type):
+    #mzXcols = ["num","msLevel","m/z array","intensity array"]
+    if raw_data_type=="mzXML":
+        data = []
+        
+        ms3level = 0
+        for ino in range(0,100):
+            spec = reader[ino]
+            msLevel = int(spec["msLevel"])
+            if msLevel==3:
+                ms3level = 1
+            if ms3level==1:
+                break
+        
+        ms123scan_list = []
+        ms123scan_ms2_array = np.array([])
+        ms123scan_ms3_list = []
+        if ms3level==1:
+            [ms123scan_list, ms123scan_ms2_array, ms123scan_ms3_list] = Get_ms123scan_list_via_mzXML(reader)
+        
+        for ino in range(0,len(reader)):
+            spec = reader[ino]
+            num = int(spec["num"])
+            msLevel = int(spec["msLevel"])
+            
+            if msLevel==3 or (msLevel==2 and ms3level==1 and num not in ms123scan_ms2_array):
+                continue
+            
+            mz_array = spec["m/z array"]
+            intensity_array = spec["intensity array"]
+            
+            if msLevel==2 and ms3level==1 and num in ms123scan_ms2_array:
+                pos1=np.nonzero( ms123scan_ms2_array==num )[0]
+                if len(pos1)>0:
+                    ms3scan = ms123scan_ms3_list[pos1[0]]
+                    ms3_spec = reader[ms3scan-1]
+                    ms3mz = ms3_spec["m/z array"]
+                    ms3inten = ms3_spec["intensity array"]
+                    [mz_array,intensity_array] = Merge_ms23(mz_array,intensity_array,ms3mz,ms3inten)
+            
+            spectrum_data = {
+                "num": num,
+                "msLevel": msLevel,
+                "m/z array": mz_array,
+                "intensity array": intensity_array
+            }
+            
+            data.append(spectrum_data)
+        
+        dfmzXML = pd.DataFrame(data)
+    elif raw_data_type=="mzML":
+        data = []
+        
+        ms3level = 0
+        for ino in range(0,100):
+            spec = reader[ino]
+            msLevel = spec['ms level']
+            if msLevel==3:
+                ms3level = 1
+            if ms3level==1:
+                break
+        
+        ms123scan_list = []
+        ms123scan_ms2_array = np.array([])
+        ms123scan_ms3_list = []
+        if ms3level==1:
+            [ms123scan_list, ms123scan_ms2_array, ms123scan_ms3_list] = Get_ms123scan_list_via_mzML(reader)
+        
+        for ino in range(0,len(reader)):
+            spec = reader[ino]
+            num = int(spec['id'].split('scan=')[-1])
+            msLevel = spec['ms level']
+            
+            if msLevel==3 or (msLevel==2 and ms3level==1 and num not in ms123scan_ms2_array):
+                continue
+            
+            mz_array = spec["m/z array"]
+            intensity_array = spec["intensity array"]
+            
+            if msLevel==2 and ms3level==1 and num in ms123scan_ms2_array:
+                pos1=np.nonzero( ms123scan_ms2_array==num )[0]
+                if len(pos1)>0:
+                    ms3scan = ms123scan_ms3_list[pos1[0]]
+                    ms3_spec = reader[ms3scan-1]
+                    ms3mz = ms3_spec["m/z array"]
+                    ms3inten = ms3_spec["intensity array"]
+                    [mz_array,intensity_array] = Merge_ms23(mz_array,intensity_array,ms3mz,ms3inten)
+            
+            spectrum_data = {
+                "num": num,
+                "msLevel": msLevel,
+                "m/z array": mz_array,
+                "intensity array": intensity_array
+            }
+            
+            data.append(spectrum_data)
+        
+        dfmzXML = pd.DataFrame(data)
+    elif raw_data_type=="ms2":
+        data = []
+        
+        for ino in range(0,len(reader)):
+            spec = reader[ino]
+            num = int(spec["params"]["scan"][0])
+            msLevel = 2
+            
+            mz_array = spec["m/z array"]
+            intensity_array = spec["intensity array"]
+            
+            spectrum_data = {
+                "num": num,
+                "msLevel": msLevel,
+                "m/z array": mz_array,
+                "intensity array": intensity_array
+            }
+            
+            data.append(spectrum_data)
+        
+        dfmzXML = pd.DataFrame(data)
+    else:
+        data = {"num": [], "msLevel": [], "m/z array": [], "intensity array": []}
+        dfmzXML = pd.DataFrame(data)
+    
+    return dfmzXML
+
 def extractReporters(files, df, params, **kwargs):
     # Input arguments
     # files: mzXML or ms2 files to be quantified
@@ -166,19 +293,39 @@ def extractReporters(files, df, params, **kwargs):
     for file in files:
         print("    Working on {}".format(os.path.basename(file)))
         ext = os.path.splitext(file)[-1]
-        if ext == ".mzXML":
-            reader = mzxml.MzXML(file)  # mzXML file reader
-        elif ext == ".ms2":
-            reader = ms2.IndexedMS2(file)  # MS2 file reader
+        # if ext == ".mzXML":
+            # reader = mzxml.MzXML(file)  # mzXML file reader
+        # elif ext == ".ms2":
+            # reader = ms2.IndexedMS2(file)  # MS2 file reader
+        # else:
+            # sys.exit(" Currently, either .mzXML or .ms2 file is supported")
+        
+        if ext==".mzXML" or ext==".mzML" or ext==".ms2":
+            if ext==".mzXML":
+                reader = mzxml.MzXML(file)
+            elif ext==".mzML":
+                reader = mzml.MzML(file)
+            elif ext==".ms2":
+                reader = ms2.IndexedMS2(file)
+            
+            raw_data_type = ext[1:]
+            
+            dfmzinten = readerToNumpyArr(reader,raw_data_type)
         else:
-            sys.exit(" Currently, either .mzXML or .ms2 file is supported")
+            data = {"num": [], "msLevel": [], "m/z array": [], "intensity array": []}
+            dfmzinten = pd.DataFrame(data)
+            sys.exit(" Currently, either .mzXML, .mzML, or .ms2 file is supported")
 
         # Extraction of TMT reporter ions in each fraction
         scans = list(df['scan'][df['frac'] == file].unique())
         progress = progressBar(len(scans))
         for scan in scans:
             progress.increment()
-            spec = reader[str(scan)]
+            # spec = reader[str(scan)]
+            # spec = reader[int(scan)-1]
+            filtered_df = dfmzinten.loc[dfmzinten.num==int(scan)]
+            for _, spec in filtered_df.iterrows():
+                break
             res = getReporterIntensity(spec, params, **kwargs)  # Array of reporter m/z and intensity values
             key = file + "_" + str(scan)
             dictQuan[key] = res
@@ -581,10 +728,20 @@ if __name__ == "__main__":
     # Note that this part may need to be revised according to the Jump -f result format
     print("  Loading ID.txt file")
     dfId = pd.read_table(params["idtxt"], sep="\t", skiprows=0, header=0)
+    
+    # ++++ raw_data_type ++++
+    # path_filename_noext
+    path_filename_noext = ''
+    for _, row in dfId.iterrows():
+        path_filename_noext = os.path.join( os.path.dirname( row['Outfile'] ), os.path.basename( row['Outfile'] ).split(".")[0] )
+        break
+    raw_data_type = "mzXML"
+    if os.path.isfile( path_filename_noext + ".mzML" )==True:
+        raw_data_type = "mzML"
 
     # Miscellaneous part for handling ID.txt
     #dfId["frac"] = dfId["Outfile"].apply(lambda x: os.path.dirname(x).rsplit(".", 1)[0] + ".mzXML")
-    dfId["frac"] = dfId["Outfile"].apply(lambda x: os.path.dirname(x) + "/" + os.path.basename(x).split(".")[0] + ".mzXML")
+    dfId["frac"] = dfId["Outfile"].apply(lambda x: os.path.dirname(x) + "/" + os.path.basename(x).split(".")[0] + "."+raw_data_type)
     dfId["scan"] = dfId["Outfile"].apply(lambda x: os.path.basename(x).split(".")[1])
     dfId["key"] = dfId["frac"] + "_" + dfId["scan"]
     fracs = dfId["frac"].unique()

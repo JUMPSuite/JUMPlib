@@ -365,8 +365,8 @@ def createMS2EachPSMS_L_ID(df_all,specLibFolder, libraryNotes, libtypename):
 
 def normalizedDotProduct(p, q):
     num = np.dot(np.sqrt(p),np.sqrt(q))
-    den1 = np.sum(p)
-    den2 = np.sum(q)
+    den1 = np.sum(p*p)
+    den2 = np.sum(q*q)
     if den1 * den2 == 0:
         normDotProduct = 0
     else:
@@ -377,6 +377,15 @@ def normalizedDotProduct(p, q):
         normDotProduct = 1
     return normDotProduct
 
+
+# def normalizedDotProduct(e_intens,r_intens):
+    
+#     if np.sqrt( sum(e_intens*e_intens)*sum(r_intens*r_intens) )==0.0:
+#         e_sim=0.0
+#     else:
+#         e_sim = sum(e_intens*r_intens)/np.sqrt( sum(e_intens*e_intens)*sum(r_intens*r_intens) )
+    
+#     return e_sim
 
 
 #df is the dataframe following the consolidation of the psms (10 total)
@@ -398,7 +407,7 @@ def computeDotProduct(df,psmsDict, Dscore_cutoff):
         DscoreIndex = []
         #the consolidation has dictionary of ms2 mz and intensity so the keys are mz array and values are intensity arrays
         consolidatedMZ = list(row[mz_cols.index("ms2_mz_int_array")].keys()) #mzarray = key
-        consolidatedIntensity = list(row[mz_cols.index("ms2_mz_int_array")].values()) #intensity array = value
+        consolidatedIntensity = np.array(row[mz_cols.index("ms2_mz_int_array")].values()) #intensity array = value
         spectrumList = row[mz_cols.index("spectrums")] #these spectrums were updated just for computing dot product
         xcorrList = row[mz_cols.index("XCorr")] # this is the list of Xcorr 
 #         print (consolidatedIntensity)
@@ -421,7 +430,11 @@ def computeDotProduct(df,psmsDict, Dscore_cutoff):
                     specMZInt["intensity"].append(specInt[get_index])
 #                 print (consolidatedIntensity)
             #normalized dot product
-            dp = normalizedDotProduct(consolidatedIntensity,specMZInt["intensity"])                
+
+            spec_query = np.array(tr_featSpec["intensity"])
+            spec_reference = np.array(lib_mz_int_dict["intensity"])
+
+            dp = normalizedDotProduct(consolidatedIntensity,np.array(specMZInt["intensity"]))               
             dp_dict[eachSpectrum]= dp
             if dp > Dscore_cutoff:
                 selectDscoreList.append(dp)
