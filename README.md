@@ -123,7 +123,7 @@ jump_lib -q jump_lib_q.params
   jumplib_test\test_jumplib\example_data
   ```
 * This folder contains a sample mzXML file along with parameter files required for search, filter and quantification
-* It also has a script to wrap all at once
+* It also has a script to wrap all at once (Change the path as required before you run the wrapper)
   ```
   bash run_jumplib.sh
   ```
