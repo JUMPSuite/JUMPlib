@@ -1,1 +1,2 @@
 example_data/*.mzXML filter=lfs diff=lfs merge=lfs -text
+spectral_libraries/*.pkl filter=lfs diff=lfs merge=lfs -text
