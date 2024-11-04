@@ -109,18 +109,18 @@ jump_lib -q jump_lib_q.params
 
 
 ## Test Data Exercise ##
-#### Download [sample_data](./sample_data)
-* This will download jumplib_test.zip
-#### Libraries
-* Unzip the file
+#### Download [example_data](./example_data)
+* This will download FTLD_Batch1_F20.mzXML with other required parameter files
+#### Download [spectral_libraries](./spectral_libraries)
+* This will download TMT11 and TMT18 in .pkl file 
   ```
-  jumplib_test\test_jumplib\spectral_libraries
+  JUMPlib\example_data
   ```
 * Contains TMT11 and TMT18 Human brain libraries
 #### Test Data 
 * Go to
   ```
-  jumplib_test\test_jumplib\example_data
+  example_data
   ```
 * This folder contains a sample mzXML file along with parameter files required for search, filter and quantification
 * It also has a script to wrap all at once (Change the path as required before you run the wrapper)
