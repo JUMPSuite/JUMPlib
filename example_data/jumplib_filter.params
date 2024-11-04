@@ -1,0 +1,34 @@
+[specLib]
+
+
+######## --- SPECTRAL LIBRARY SEARCHING --- #####
+
+#search result path. The program will look for a subfolder with mzxml name and inside it will look for .1.csv file or .allScores.csv (if RT was extracted in library search and the user provide advanced filtering option in the filter_method here
+
+search_result_path = /home/zyuan1/test_jumplib/example_data
+
+
+#filter result output folder
+outputFolder = default
+
+####### --- TARGET/DECOY and FILTERING --- ####
+#Usually psms under jdscore = 0.8 do not have good match, since we can use RT to rescue we can define a jdscore cutoff. Keep this 0.6 as constant unless you want to experiment the relationship between rt and score. This is also used to rescue any PSMS that did not pass fdr for any groups.
+jdscore_cutoff = 0.6
+
+#user defined FDR for cutoff at psms level
+FDR = 0.14
+
+#User defined Filter method 0 = Rapid (default JDscore), 1 = Advanced filter (use grouping to small FDR boxes using JDscore and delRT as multiple interval. To perform this you need to have the search with RT extraction step  
+
+filter_method = 0
+
+#advanced filtering parameter
+#grouping size, for example groupsize is defined by delRT interval in y-axis and JDscore interval in x-axis it could be 1 minute and 0.1 JDscore rtwidth, jdwidth = min, score
+rt_width_jdscore_width = 1, 0.1
+
+#delta RT cutoff, this is in standard deviation and will remove too high delRT delRT_SD = 3
+delRT_SD = 3
+
+#provide the library that was used for searching give the path the folder that contains the library
+specLibFolder = /home/zyuan1/test_jumplib/spectral_libraries/Human_AD_TMT18_merge_31_prec_swap
+#specLibFolder = /home/zyuan1/test_jumplib/spectral_libraries/Human_AD_TMT11_merge_37_prec_swap

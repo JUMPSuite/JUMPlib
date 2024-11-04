@@ -1,0 +1,85 @@
+[specLib]
+
+#--- SPECTRAL LIBRARY GENERATION --- #########
+
+#output folder for spectral library
+#tmt18 -- give the path the folder that contains the library
+specLibFolder = /home/zyuan1/test_jumplib/spectral_libraries/Human_AD_TMT18_merge_31_prec_swap
+#tmt11 -- give the path the folder that contains the library
+#specLibFolder = /home/zyuan1/test_jumplib/spectral_libraries/Human_AD_TMT11_merge_37_prec_swap
+
+
+######## --- SPECTRAL LIBRARY SEARCHING --- #####
+#path that contains ms2 files
+ms2_path = /home/zyuan1/test_jumplib/example_data
+
+#to perform preprocessing too duringthe search
+mzxml_path = /home/zyuan1/test_jumplib/example_data
+
+#tolerance used for matching precursor m/z
+ms1_tol = 10
+
+
+#fragment/product ion tolerance
+#turn off or turn on top ion selection. Normally it is best to turn it on as the precuse target are selected. For null search, it might be better to turn it off
+## 1 = Turn on, 0 = Turn off
+top_ions_control = 1
+#
+##number of top ions that should be present in library in order to proceed searching
+##there are 2 parts in this parameter. First is minimum number of top ions required out of second part (top ions searched) fpr example 1,3 means at least 1 topion out of 3 ions is required
+top_ions = 1,3
+#fragment/product ion tolerance
+#
+ms2_tol = 10
+
+#this gives the number of window we want to use on mz for normalization of intensity; if we select the scoring mechanism parameter method = normalized_dot_product ; this parameter is skipped
+window_number = 1
+
+#binning width -- the binning is done to select top 10 ions within the bin .. here 100 mz is taken as binsize; to use all the ions use binsize = no or NO or No 
+binsize = 100
+
+#maximum fragment ions that are selected from raw spectrum for each bin
+top_ions_per_bin = 10
+
+#scoring methods
+##"DP_Peng", "unweighted_entropy", "fidelity","bhattacharya_2","dot_product"
+##method = "fidelity"
+#
+method = normalized_dot_product
+
+#tmt = 1 means labeled else tmt = 0 for non labeled
+tmt = 1
+#selection of start and end scans to search. Default 0,0 means there is no such range
+start_end_scan_range = 0,0
+#
+#this is for naming the library. This depends on type of data
+####1= tmt18_default, 2 = tmt11_default, 3= tmt18_pho, 4 = tmt11_pho, 5= tmt18_ub, 6 = tmt11_ub, 100 = labelfree_default, 1000 = silaclys_default
+libtype = 1
+
+#null search parameters
+#null searsch = 1 is perform null search, 0 = no null search
+null_search = 0
+#simulation mass in Dalton. This mass will be added to precursor mass to search
+sim_mass = 5
+
+#select server or standalone 0 = standalone, 1 = server
+job_type = 0
+
+#define the cores for search program, if job_type is 1 n_cores will not be used
+n_cores = 8
+
+
+
+
+####### --- DYNAMIC INTENSTIY TOLERANCE CONCEPT ---#####
+#
+##Add the Dynamic Intensity correction or static tolerance correction for ms2 matching
+##If you choose Dynamic Intensity correction here than you will need the file generated from JUMP mass calibration program
+#
+##If you choose static, you will have to put value in tol =; else keep the file for Dynamic intensity and tolerance generated from mass calibration program
+tolerance_type = Static
+#
+dyn_tol_file = /Users/spoudel1/Desktop/JUMP_specLib/Program/finalProgram/massCalForSecondSearch/MasCalSecondSearch/SD_Intensity_LookUpTable.txt
+#
+##tolerance for ms2 matching = fragment ion tolerance, If Dynamic is selected tolerance will be in SD for example tol = 3 for 3SD; if static is selected the tolerance will be in ppm for example tol = 10 for 10 ppm
+#
