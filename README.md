@@ -114,7 +114,7 @@ jump_lib -q jump_lib_q.params
 #### Download [spectral_libraries](./spectral_libraries)
 * This will download TMT11 and TMT18 in .pkl file 
   ```
-  JUMPlib\example_data
+  JUMPlib\spectral_libraries
   ```
 * Contains TMT11 and TMT18 Human brain libraries
 #### Test Data 
