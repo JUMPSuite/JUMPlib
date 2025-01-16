@@ -19,8 +19,7 @@ JUMPlib is a specialized tool designed for searching TMT-based proteomics data. 
 
 ----
 ## JUMPlib Publication:
-  * The manuscript is submitted and this part will be updated later.
-  * If you use JUMPlib as part of a publication, please include this reference.
+  * If you use JUMPlib as part of a publication, please include this reference [https://pubs.acs.org/doi/full/10.1021/acs.jproteome.4c00410].
 
 [Top of page](#JUMPlib)
 
